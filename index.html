@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to PPTX Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-4xl bg-white p-8 rounded-xl shadow-lg">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">HTML to PPTX Converter</h1>
+            <p class="text-gray-600 mt-2">Paste your HTML presentation code below and convert it to a downloadable PowerPoint (.pptx) file.</p>
+        </div>
+
+        <!-- Input Textarea -->
+        <div>
+            <label for="htmlInput" class="block text-sm font-medium text-gray-700 mb-2">HTML Content:</label>
+            <textarea id="htmlInput" rows="15" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Paste your full HTML code here..."></textarea>
+        </div>
+
+        <!-- Action Button and Status -->
+        <div class="mt-6 flex flex-col items-center">
+            <button id="convertBtn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105">
+                Convert to PowerPoint
+            </button>
+            <div id="status" class="mt-4 text-gray-600 font-medium h-6"></div>
+        </div>
+    </div>
+
+    <!-- Hidden Iframe for Rendering -->
+    <iframe id="renderFrame" class="absolute -left-full -top-full w-[1920px] h-[1080px]" sandbox="allow-scripts"></iframe>
+
+    <script>
+        // --- Main Conversion Logic ---
+
+        const convertBtn = document.getElementById('convertBtn');
+        const htmlInput = document.getElementById('htmlInput');
+        const statusDiv = document.getElementById('status');
+        const renderFrame = document.getElementById('renderFrame');
+
+        convertBtn.addEventListener('click', async () => {
+            const htmlContent = htmlInput.value;
+            if (!htmlContent.trim()) {
+                statusDiv.textContent = 'Please paste some HTML content first.';
+                return;
+            }
+
+            // Disable button during conversion
+            convertBtn.disabled = true;
+            convertBtn.textContent = 'Converting...';
+            statusDiv.textContent = 'Initializing conversion...';
+
+            try {
+                // Initialize a new presentation
+                let pptx = new PptxGenJS();
+                pptx.layout = 'LAYOUT_16X9';
+
+                // Write HTML to the iframe
+                renderFrame.srcdoc = htmlContent;
+                
+                // Wait for iframe to load
+                await new Promise(resolve => {
+                    renderFrame.onload = resolve;
+                });
+
+                const frameDoc = renderFrame.contentWindow.document;
+                const slides = frameDoc.querySelectorAll('.slide');
+
+                if (slides.length === 0) {
+                    throw new Error("No elements with class 'slide' found in the HTML.");
+                }
+
+                // Process each slide
+                for (let i = 0; i < slides.length; i++) {
+                    const slideElement = slides[i];
+                    statusDiv.textContent = `Processing slide ${i + 1} of ${slides.length}...`;
+
+                    // Make the current slide visible for rendering
+                    slides.forEach(s => s.classList.remove('active'));
+                    slideElement.classList.add('active');
+                    
+                    // Give a moment for styles/transitions to apply
+                    await new Promise(res => setTimeout(res, 100));
+
+                    // Take screenshot of the slide
+                    const canvas = await html2canvas(frameDoc.body, {
+                        width: 1920,
+                        height: 1080,
+                        scale: 1,
+                        logging: false,
+                        useCORS: true,
+                        windowWidth: frameDoc.documentElement.scrollWidth,
+                        windowHeight: frameDoc.documentElement.scrollHeight
+                    });
+                    
+                    const slideImage = canvas.toDataURL('image/png', 1.0);
+
+                    // Add a new slide to the presentation
+                    let slide = pptx.addSlide();
+                    
+                    // Add the captured image to the slide, covering it entirely
+                    slide.addImage({
+                        data: slideImage,
+                        x: 0,
+                        y: 0,
+                        w: '100%',
+                        h: '100%'
+                    });
+                }
+
+                statusDiv.textContent = 'Finalizing presentation...';
+
+                // Save the presentation
+                pptx.writeFile({ fileName: 'presentation.pptx' });
+
+                statusDiv.textContent = 'Conversion successful! Check your downloads.';
+
+            } catch (error) {
+                console.error('Conversion failed:', error);
+                statusDiv.textContent = `Error: ${error.message}`;
+            } finally {
+                // Re-enable button
+                convertBtn.disabled = false;
+                convertBtn.textContent = 'Convert to PowerPoint';
+            }
+        });
+    </script>
+</body>
+</html>
