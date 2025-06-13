@@ -43,97 +43,100 @@
 
     <script>
         // --- Main Conversion Logic ---
+        // This event listener ensures that the script runs only after the entire DOM,
+        // including external libraries, is fully loaded and ready.
+        document.addEventListener('DOMContentLoaded', () => {
+            const convertBtn = document.getElementById('convertBtn');
+            const htmlInput = document.getElementById('htmlInput');
+            const statusDiv = document.getElementById('status');
+            const renderFrame = document.getElementById('renderFrame');
 
-        const convertBtn = document.getElementById('convertBtn');
-        const htmlInput = document.getElementById('htmlInput');
-        const statusDiv = document.getElementById('status');
-        const renderFrame = document.getElementById('renderFrame');
-
-        convertBtn.addEventListener('click', async () => {
-            const htmlContent = htmlInput.value;
-            if (!htmlContent.trim()) {
-                statusDiv.textContent = 'Please paste some HTML content first.';
-                return;
-            }
-
-            // Disable button during conversion
-            convertBtn.disabled = true;
-            convertBtn.textContent = 'Converting...';
-            statusDiv.textContent = 'Initializing conversion...';
-
-            try {
-                // Initialize a new presentation
-                let pptx = new PptxGenJS();
-                pptx.layout = 'LAYOUT_16X9';
-
-                // Write HTML to the iframe
-                renderFrame.srcdoc = htmlContent;
-                
-                // Wait for iframe to load
-                await new Promise(resolve => {
-                    renderFrame.onload = resolve;
-                });
-
-                const frameDoc = renderFrame.contentWindow.document;
-                const slides = frameDoc.querySelectorAll('.slide');
-
-                if (slides.length === 0) {
-                    throw new Error("No elements with class 'slide' found in the HTML.");
+            convertBtn.addEventListener('click', async () => {
+                const htmlContent = htmlInput.value;
+                if (!htmlContent.trim()) {
+                    statusDiv.textContent = 'Please paste some HTML content first.';
+                    return;
                 }
 
-                // Process each slide
-                for (let i = 0; i < slides.length; i++) {
-                    const slideElement = slides[i];
-                    statusDiv.textContent = `Processing slide ${i + 1} of ${slides.length}...`;
+                // Disable button during conversion
+                convertBtn.disabled = true;
+                convertBtn.textContent = 'Converting...';
+                statusDiv.textContent = 'Initializing conversion...';
 
-                    // Make the current slide visible for rendering
-                    slides.forEach(s => s.classList.remove('active'));
-                    slideElement.classList.add('active');
+                try {
+                    // Initialize a new presentation
+                    let pptx = new PptxGenJS();
+                    pptx.layout = 'LAYOUT_16X9';
+
+                    // Write HTML to the iframe
+                    renderFrame.srcdoc = htmlContent;
                     
-                    // Give a moment for styles/transitions to apply
-                    await new Promise(res => setTimeout(res, 100));
-
-                    // Take screenshot of the slide
-                    const canvas = await html2canvas(frameDoc.body, {
-                        width: 1920,
-                        height: 1080,
-                        scale: 1,
-                        logging: false,
-                        useCORS: true,
-                        windowWidth: frameDoc.documentElement.scrollWidth,
-                        windowHeight: frameDoc.documentElement.scrollHeight
+                    // Wait for iframe to load
+                    await new Promise(resolve => {
+                        renderFrame.onload = resolve;
                     });
-                    
-                    const slideImage = canvas.toDataURL('image/png', 1.0);
 
-                    // Add a new slide to the presentation
-                    let slide = pptx.addSlide();
-                    
-                    // Add the captured image to the slide, covering it entirely
-                    slide.addImage({
-                        data: slideImage,
-                        x: 0,
-                        y: 0,
-                        w: '100%',
-                        h: '100%'
-                    });
+                    const frameDoc = renderFrame.contentWindow.document;
+                    const slides = frameDoc.querySelectorAll('.slide');
+
+                    if (slides.length === 0) {
+                        throw new Error("No elements with class 'slide' found in the HTML.");
+                    }
+
+                    // Process each slide
+                    for (let i = 0; i < slides.length; i++) {
+                        const slideElement = slides[i];
+                        statusDiv.textContent = `Processing slide ${i + 1} of ${slides.length}...`;
+
+                        // Make the current slide visible for rendering
+                        slides.forEach(s => s.classList.remove('active'));
+                        slideElement.classList.add('active');
+                        
+                        // Give a moment for styles/transitions to apply
+                        await new Promise(res => setTimeout(res, 100));
+
+                        // Take screenshot of the slide
+                        const canvas = await html2canvas(frameDoc.body, {
+                            width: 1920,
+                            height: 1080,
+                            scale: 1,
+                            logging: false,
+                            useCORS: true,
+                            windowWidth: frameDoc.documentElement.scrollWidth,
+                            windowHeight: frameDoc.documentElement.scrollHeight
+                        });
+                        
+                        const slideImage = canvas.toDataURL('image/png', 1.0);
+
+                        // Add a new slide to the presentation
+                        let slide = pptx.addSlide();
+                        
+                        // Add the captured image to the slide, covering it entirely
+                        slide.addImage({
+                            data: slideImage,
+                            x: 0,
+                            y: 0,
+                            w: '100%',
+                            h: '100%'
+                        });
+                    }
+
+                    statusDiv.textContent = 'Finalizing presentation...';
+
+                    // Save the presentation
+                    pptx.writeFile({ fileName: 'presentation.pptx' });
+
+                    statusDiv.textContent = 'Conversion successful! Check your downloads.';
+
+                } catch (error) {
+                    console.error('Conversion failed:', error);
+                    statusDiv.textContent = `Error: ${error.message}`;
+                } finally {
+                    // Re-enable button
+                    convertBtn.disabled = false;
+                    convertBtn.textContent = 'Convert to PowerPoint';
                 }
-
-                statusDiv.textContent = 'Finalizing presentation...';
-
-                // Save the presentation
-                pptx.writeFile({ fileName: 'presentation.pptx' });
-
-                statusDiv.textContent = 'Conversion successful! Check your downloads.';
-
-            } catch (error) {
-                console.error('Conversion failed:', error);
-                statusDiv.textContent = `Error: ${error.message}`;
-            } finally {
-                // Re-enable button
-                convertBtn.disabled = false;
-                convertBtn.textContent = 'Convert to PowerPoint';
-            }
+            });
         });
     </script>
 </body>
